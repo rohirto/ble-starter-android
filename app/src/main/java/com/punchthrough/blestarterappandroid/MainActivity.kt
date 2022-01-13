@@ -23,6 +23,7 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanFilter as LeScanFilter
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.Intent
@@ -41,6 +42,16 @@ import kotlinx.android.synthetic.main.activity_main.scan_button
 import kotlinx.android.synthetic.main.activity_main.scan_results_recycler_view
 import org.jetbrains.anko.alert
 import timber.log.Timber
+import android.bluetooth.le.ScanFilter
+
+import android.R.attr.name
+import android.R.attr.name
+
+
+
+
+
+
 
 private const val ENABLE_BLUETOOTH_REQUEST_CODE = 1
 private const val LOCATION_PERMISSION_REQUEST_CODE = 2
@@ -69,6 +80,19 @@ class MainActivity : AppCompatActivity() {
             field = value
             runOnUiThread { scan_button.text = if (value) "Stop Scan" else "Start Scan" }
         }
+
+    private var macFilter = "94:B9:7E:EA:64:4A"
+    private fun buildScanFilters(): List<ScanFilter>? {
+        val scanFilters: MutableList<ScanFilter> = ArrayList()
+        val builder = ScanFilter.Builder()
+        // Comment out the below line to see all BLE devices around you
+        builder.setDeviceAddress(macFilter)
+        scanFilters.add(builder.build())
+        return scanFilters
+    }
+
+    private val filter = LeScanFilter.Builder().setDeviceAddress(macFilter).build()
+
 
     private val scanResults = mutableListOf<ScanResult>()
     private val scanResultAdapter: ScanResultAdapter by lazy {
@@ -151,9 +175,10 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !isLocationPermissionGranted) {
             requestLocationPermission()
         } else {
+
             scanResults.clear()
             scanResultAdapter.notifyDataSetChanged()
-            bleScanner.startScan(null, scanSettings, scanCallback)
+            bleScanner.startScan(buildScanFilters(), scanSettings, scanCallback)
             isScanning = true
         }
     }
