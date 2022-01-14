@@ -51,6 +51,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import com.punchthrough.blestarterappandroid.application.applicationLogic as applicationLogic1
 
 class BleOperationsActivity : AppCompatActivity() {
 
@@ -224,9 +225,12 @@ class BleOperationsActivity : AppCompatActivity() {
             onMtuChanged = { _, mtu ->
                 log("MTU updated to $mtu")
             }
-
+            /* The Notifications pushed from this point */
             onCharacteristicChanged = { _, characteristic ->
-                log("Value changed on ${characteristic.uuid}: ${characteristic.value.toHexString()}")
+                //log("Value changed on ${characteristic.uuid}: ${characteristic.value.toHexString()}")
+                /* Send to Application Logic For processing */
+                val bleData = applicationLogic1()
+                bleData.processData(characteristic.value)
             }
 
             onNotificationsEnabled = { _, characteristic ->
