@@ -29,5 +29,11 @@ object applicationData {
     public var date: String = ""
     public var time: String = ""
 
+    public var frameType: Int = 0       //If 1 then TPMS Tag, If 2 then GPS tag
+    public var MqttPayload: String =""
+    public fun isTag(): Int {
+        return frameType
+    }
+
 
 }

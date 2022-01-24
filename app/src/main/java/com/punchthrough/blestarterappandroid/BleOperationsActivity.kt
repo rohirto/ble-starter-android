@@ -38,6 +38,13 @@ import com.punchthrough.blestarterappandroid.ble.isReadable
 import com.punchthrough.blestarterappandroid.ble.isWritable
 import com.punchthrough.blestarterappandroid.ble.isWritableWithoutResponse
 import com.punchthrough.blestarterappandroid.ble.toHexString
+import com.punchthrough.blestarterappandroid.mqtt.MqttClientHelperTag
+import com.punchthrough.blestarterappandroid.mqtt.MqttClientHelperGPS
+import com.punchthrough.blestarterappandroid.mqtt.*
+import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
+import org.eclipse.paho.client.mqttv3.MqttCallbackExtended
+import org.eclipse.paho.client.mqttv3.MqttException
+import org.eclipse.paho.client.mqttv3.MqttMessage
 import kotlinx.android.synthetic.main.activity_ble_operations.characteristics_recycler_view
 import kotlinx.android.synthetic.main.activity_ble_operations.log_scroll_view
 import kotlinx.android.synthetic.main.activity_ble_operations.log_text_view
@@ -51,11 +58,19 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
-import com.punchthrough.blestarterappandroid.application.applicationLogic as applicationLogic1
+import com.punchthrough.blestarterappandroid.application.ApplicationLogic as ApplicationLogic1
+import android.util.Log
 
 class BleOperationsActivity : AppCompatActivity() {
 
     private lateinit var device: BluetoothDevice
+    private val bleData = ApplicationLogic1()
+    private val mqttClient1 by lazy {
+        MqttClientHelperTag(this)
+    }
+    private val mqttClient2 by lazy {
+        MqttClientHelperGPS(this)
+    }
     private val dateFormatter = SimpleDateFormat("MMM d, HH:mm:ss", Locale.US)
     private val characteristics by lazy {
         ConnectionManager.servicesOnDevice(device)?.flatMap { service ->
@@ -83,6 +98,7 @@ class BleOperationsActivity : AppCompatActivity() {
     private var notifyingCharacteristics = mutableListOf<UUID>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        setMqttCallBack()
         ConnectionManager.registerListener(connectionEventListener)
         super.onCreate(savedInstanceState)
         device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
@@ -106,9 +122,12 @@ class BleOperationsActivity : AppCompatActivity() {
             }
             hideKeyboard()
         }
+
     }
 
     override fun onDestroy() {
+        mqttClient1.destroy()
+        mqttClient2.destroy()
         ConnectionManager.unregisterListener(connectionEventListener)
         ConnectionManager.teardownConnection(device)
         super.onDestroy()
@@ -229,8 +248,45 @@ class BleOperationsActivity : AppCompatActivity() {
             onCharacteristicChanged = { _, characteristic ->
                 //log("Value changed on ${characteristic.uuid}: ${characteristic.value.toHexString()}")
                 /* Send to Application Logic For processing */
-                val bleData = applicationLogic1()
+                var snackbarMsg : String
                 bleData.processData(characteristic.value)
+                if(bleData.appData.isTag() == 1){
+                    //If tag Data
+                    val topic = MQTT_TOPIC
+                    if (topic.isNotEmpty()) {
+                        if(bleData.appData.MqttPayload.isNotEmpty()) {
+                            snackbarMsg = try {
+                                mqttClient1.publish(topic,bleData.appData.MqttPayload)
+                                "Published to topic '$topic'"
+                            } catch(ex: MqttException){
+                                "Error publishing to topic: $topic"
+                            }
+                            Log.w("Debug", snackbarMsg)
+
+                        }
+                    }
+                }
+                else if(bleData.appData.isTag() == 2){
+                   //GPS Data
+                    val topic = MQTT_TOPIC
+                    if (topic.isNotEmpty()) {
+                        if(bleData.appData.MqttPayload.isNotEmpty()) {
+                            snackbarMsg = try {
+                                mqttClient2.publish(topic,bleData.appData.MqttPayload)
+                                "Published to topic '$topic'"
+                            } catch(ex: MqttException){
+                                "Error publishing to topic: $topic"
+                            }
+                            Log.w("Debug", snackbarMsg)
+
+                        }
+                    }
+                }
+                else{
+                    //Invalid Data
+                    Log.w("Debug", "Invalid Data , Not Tag or GPS")
+                }
+
             }
 
             onNotificationsEnabled = { _, characteristic ->
@@ -279,4 +335,50 @@ class BleOperationsActivity : AppCompatActivity() {
 
     private fun String.hexToBytes() =
         this.chunked(2).map { it.toUpperCase(Locale.US).toInt(16).toByte() }.toByteArray()
+
+    private fun setMqttCallBack() {
+        mqttClient1.setCallback(object : MqttCallbackExtended {
+            override fun connectComplete(b: Boolean, s: String) {
+                val snackbarMsg = "TAG Connected to host:\n'$MQTT_HOST'."
+                Log.w("Debug", snackbarMsg)
+
+            }
+            override fun connectionLost(throwable: Throwable) {
+                val snackbarMsg = "TAG Connection to host lost:\n'$MQTT_HOST'"
+                Log.w("Debug", snackbarMsg)
+
+            }
+            @Throws(Exception::class)
+            override fun messageArrived(topic: String, mqttMessage: MqttMessage) {
+                Log.w("Debug", "TAG Message received from host '$MQTT_HOST': $mqttMessage")
+
+            }
+
+            override fun deliveryComplete(iMqttDeliveryToken: IMqttDeliveryToken) {
+                Log.w("Debug", "TAG Message published to host '$MQTT_HOST'")
+            }
+        })
+        mqttClient2.setCallback(object : MqttCallbackExtended {
+            override fun connectComplete(b: Boolean, s: String) {
+                val snackbarMsg = "GPS Connected to host:\n'$MQTT_HOST'."
+                Log.w("Debug", snackbarMsg)
+
+            }
+            override fun connectionLost(throwable: Throwable) {
+                val snackbarMsg = "GPS Connection to host lost:\n'$MQTT_HOST'"
+                Log.w("Debug", snackbarMsg)
+
+            }
+            @Throws(Exception::class)
+            override fun messageArrived(topic: String, mqttMessage: MqttMessage) {
+                Log.w("Debug", "GPS Message received from host '$MQTT_HOST': $mqttMessage")
+
+            }
+
+            override fun deliveryComplete(iMqttDeliveryToken: IMqttDeliveryToken) {
+                Log.w("Debug", "GPS Message published to host '$MQTT_HOST'")
+            }
+        })
+    }
+
 }

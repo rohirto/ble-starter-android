@@ -22,33 +22,91 @@ import com.punchthrough.blestarterappandroid.application.applicationData
 import java.nio.ByteBuffer
 import timber.log.Timber
 
-class applicationLogic {
+class ApplicationLogic {
     /* Add methods to Process Data and Send to MqTT*/
-    @SuppressLint("LogNotTimber")
+    public val appData = applicationData
     public fun processData(byteData: ByteArray) {
-        val stringData = String(byteData)
-        val appData = applicationData
+        var stringData = ""
+        try {
+             stringData = String(byteData).substringBefore("\n")
+        }catch( ex: IndexOutOfBoundsException){
+            //Out of bounds
+        }
+
         /* Tag Data */
         val compByte : Byte = 9
         if(byteData[1] == compByte){
-            // Its a Tag Data String
-            val lstValues: List<String> = stringData.split("\t")
-            appData.tagType = lstValues[0].toInt()
-            //appData.tagType = stringData.substring(0).toInt()
-            val tempByte1 = (lstValues[1].toInt()/100).toString()
-            val tempByte2 = (lstValues[1].toInt()%100).toString()
+            try{
+                val lstValues: List<String> = stringData.split("\t")
+                appData.tagType = lstValues[0].toInt()
+                //appData.tagType = stringData.substring(0).toInt()
+                var tempByte1 = (lstValues[1].toInt()/100).toString()
+                var tempByte2 = (lstValues[1].toInt()%100).toString()
+                var stringTmp = "$tempByte1.$tempByte2"
+                appData.temperature = stringTmp.toFloat()
+                //val buffer = ByteBuffer.wrap(tempByte).int
+                //val tempFloat = buffer.getFloat(2)
+                tempByte1 = (lstValues[2].toInt()/100).toString()
+                tempByte2 = (lstValues[2].toInt()%100).toString()
+                stringTmp = "$tempByte1.$tempByte2"
+                appData.pressure = stringTmp.toFloat()
+                tempByte1 = lstValues[3].trim()
+                //tempByte2 = (lstValues[3].toInt()%100).toString()
+                stringTmp = tempByte1
+                appData.batt = stringTmp.toInt()
+                appData.frameType = 1    //Tag Data
 
-            val stringTmp = "$tempByte1.$tempByte2"
-            //val buffer = ByteBuffer.wrap(tempByte).int
-            //val tempFloat = buffer.getFloat(2)
-            appData.temperature = stringTmp.toFloat()
-            Log.d(
-                "APP",
-                "Tag Type: ${appData.tagType} Temperature: $stringTmp byte1: $tempByte1 byte2: $tempByte2"
-            )
+                Log.d(
+                    "APP",
+                    "${lstValues[3]}"
+                )
+
+                appData.MqttPayload = "{\"Tag_Type\":${appData.tagType}, \"Temperature\":${appData.temperature}, \"Pressure\":${appData.pressure}, \"Battery\":${appData.batt}}"
+
+
+            }catch(ex: NumberFormatException){
+                Log.d(
+                    "APP",
+                    "Number Format Error!"
+                )
+
+            }
+            // Its a Tag Data String
 
         }
+        else if(byteData[10] == compByte)
+        {
+            try{
+                //Its a GPS data String
+                val lstValues: List<String> = stringData.split("\t")
+                appData.date = lstValues[0]
+                appData.time = lstValues[1]
+                appData.lat = lstValues[2].toFloat()
+                appData.long = lstValues[3].toFloat()
+                appData.frameType = 2 //GPS Data
+                Log.d(
+                    "APP",
+                    "Date: ${appData.date} Time: ${appData.time} Latitude: ${appData.lat} Longitude: ${appData.long}"
+                )
+                appData.MqttPayload = "{\"Latitude\":${appData.lat}, \"Longitude\":${appData.long}}"
 
+
+            }catch(ex: NumberFormatException){
+                Log.d(
+                    "APP",
+                    "Number Format Error!"
+                )
+
+            }
+        }
+
+    }
+    public fun initMQTT(){
+
+
+    }
+    public fun sendData(){
+        //Send Data to cloud over MQTT
     }
 
 }
